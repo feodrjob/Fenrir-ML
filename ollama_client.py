@@ -4,7 +4,7 @@ OLLAMA_URL = "http://localhost:11434/api/generate"
 MODEL_NAME = "qwen3.5:9b-q4_K_M"
 
 
-def ask_ollama(prompt):
+def ask_ollama(prompt, response_schema = None):
     """Отправляем запрос локальной модели и возвращаем ответ."""
 
     payload = {
@@ -16,8 +16,19 @@ def ask_ollama(prompt):
 
         # Для извлечения данных нам пока не нужны
         # длинные внутренние рассуждения модели
-        "think": False
+        "think": False,
+
+        # Температура 0 делает ответы более предсказуемыми
+        "options": {
+            "temperature" : 0
+        }
     }
+
+    # Если нам передали JSON Schema,
+    # добавляем её в запрос к Ollama.
+    if response_schema is not None:
+        payload["format"] =response_schema
+
 
     print("Отправляю запрос в Ollama...")
 
