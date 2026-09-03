@@ -12,8 +12,6 @@ from gigachat.models import (
     ChatResponseFormat
 )
 
-from test_ollama_connection import response
-
 #Загрзилил настройки из .env
 load_dotenv()
 
@@ -55,6 +53,8 @@ class OllamaProvider(LLMProvider):
             #Получаем ответ целиком
             "stream": False,
 
+            "think":False,
+
             #Отключаем длинный thinking
             "options":{
                 "temperature": 0
@@ -66,7 +66,7 @@ class OllamaProvider(LLMProvider):
             payload["format"] = response_schema
         print(f"Использую Ollama: {self.model}")
 
-        #Отправляем запрос локальной Ollama
+
         response = requests.post(
             self.url,
             json=payload,
@@ -77,6 +77,7 @@ class OllamaProvider(LLMProvider):
         response.raise_for_status()
 
         data = response.json()
+
 
         return data["response"]
 
@@ -95,3 +96,112 @@ class GigachatProvider(LLMProvider):
             "GIGACHAT_CA_BUNDLE",
             "russian_trusted_root_ca_pem.crt"
         )
+
+    def generate (self, prompt, response_schema = None):
+        print (f"Используеься Gigachat : {self.model} ")
+
+        #Если нужна строгая JSON schema
+        if response_schema is not None:
+            request = ChatCompletionRequest(
+                model=self.model,
+
+                #Текст, который получает модель
+                messages = [
+                    ChatMessage(
+                        role = "user",
+                        content=prompt
+                    )
+                ],
+
+                #Требуем структурированный JSON
+                model_options = ChatModelOptions(
+                    response_format=ChatResponseFormat(
+                        type="json_schema",
+                        schema = response_schema,
+                        strict = True
+                    )
+                )
+            )
+
+        else:
+            request = ChatCompletionRequest(
+                model=self.model,
+                messages = [
+                    ChatMessage(
+                        role = "user",
+                        content=prompt
+                    )
+                ]
+            )
+
+        from pathlib import Path
+
+        certificate_path = Path(self.ca_bundle).resolve()
+
+
+        with GigaChat(
+                ca_bundle_file=str(certificate_path),
+                base_url="https://api.giga.chat/v1"
+        ) as client:
+
+            # Отправляем подготовленный request в GigaChat
+            response = client.chat.create(request)
+
+        # После выхода из with соединение с GigaChat закрывается
+
+        # Достаём текст ответа модели
+        return response.messages[0].content[0].text
+
+#----------------------------------------------------------------------------------------------------
+#Выбор провайдера
+def get_llm_provider():
+    """
+    Смотрим LLM_PROVIDER в .env и создаем нужный объект
+    """
+
+    provider_name = os.getenv(
+        "LLM_PROVIDER",
+        "ollama"
+    ).lower()
+
+    if provider_name == "gigachat":
+        return GigachatProvider()
+
+    if provider_name == "ollama":
+        return OllamaProvider()
+
+    raise ValueError(
+        f"Неизвестный LLM провайдер: {provider_name}"
+    )
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

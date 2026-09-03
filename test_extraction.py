@@ -1,7 +1,14 @@
 # Импортируем НАШУ функцию из файла ollama_client.py.
 # То есть код подключения к Ollama второй раз не пишем.
-from ollama_client import ask_ollama
+from llm_provider import get_llm_provider
+#Библиотека данная умеет превращать json текст в настоящйи словарь
+import json
+#Импортируем модель данных
+from extraction_models import ExtractionResult, ExtractedField, SourceInfo
 
+
+# Функция посмотрит LLM_PROVIDER в .env.
+llm = get_llm_provider()
 
 # Описываем структуру ответа,
 # которую Qwen обязана вернуть.
@@ -106,7 +113,39 @@ prompt = f"""
 # Передаём одновременно:
 # 1. наше задание
 # 2. строгую структуру ответа
-answer = ask_ollama(prompt, extraction_schema)
+answer = llm.generate(
+    prompt,
+    extraction_schema
+)
 
-print("Результат извлечения")
-print (answer)
+# model_validate_json() делает сразу две вещи:
+#
+# 1. превращает JSON-строку в данные Python;
+# 2. проверяет их по правилам ExtractionResult.
+#
+# Если структура неправильная —
+# Pydantic сразу выдаст понятную ошибку.
+
+data = ExtractionResult.model_validate_json(answer)
+
+#Проверим что можем обратиться к каждому значению по ключу
+# У объекта Pydantic поля доступны через точку.
+print("Шифр проекта:", data.project_code)
+print("Материал:", data.material)
+print("Количество:", data.quantity)
+print("Толщина:", data.thickness)
+# print("Результат извлечения")
+# print (answer)
+
+"""Пока источник создаём вручную только для проверки самой модели provenance.
+Позже документ, страницу и координаты система будет определять автоматически."""
+
+project_code_field = ExtractedField(
+    value = data.project_code,
+
+    source=SourceInfo(
+        document = "Защита ГЩУ-ТЭЦ-3 от БПЛА ОСНОВА.pdf",
+        page = 1
+    )
+)
+print(project_code_field)

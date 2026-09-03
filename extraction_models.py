@@ -1,0 +1,43 @@
+# BaseModel — базовый класс Pydantic.
+# Наследуясь от него, мы получаем автоматическую
+# проверку данных.
+
+from pydantic import BaseModel
+
+#описываем откуда было получено конкретное значение
+class SourceInfo(BaseModel):
+
+    document:str | None
+    page:int | None
+
+#Одно найденное значение с информацией об источнике
+class ExtractedField(BaseModel):
+    #Само значение
+    value:str | None
+
+    # Откуда система взяла значение
+    source: SourceInfo | None
+
+
+
+
+
+class ExtractionResult(BaseModel):
+    """
+    Описывает данные, которые мы ожидаем получить
+    от LLM для нашего текущего тестового сценария.
+    """
+
+    # str | None означает:
+    # значение может быть строкой ИЛИ None.
+    #
+    # None в Python соответствует null в JSON.
+
+    project_code:str | None
+
+    material:str | None
+
+    quantity:str | None
+
+    thickness:str | None
+
