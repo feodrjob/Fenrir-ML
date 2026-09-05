@@ -5,7 +5,7 @@ from llm_provider import get_llm_provider
 import json
 #Импортируем модель данных
 from extraction_models import ExtractionResult, ExtractedField, SourceInfo
-
+from provenance import find_source_page, find_source_fragment
 
 # Функция посмотрит LLM_PROVIDER в .env.
 llm = get_llm_provider()
@@ -68,17 +68,18 @@ extraction_schema = {
 }
 
 
-# Открываем текстовый файл, который ранее создал PyMuPDF
-with open("extracted_text.txt","r", encoding="utf-8") as file:
-    # read() читает всё содержимое файла в одну строку
-    document_text = file.read()
+"""Читаем JSON, который создал main.py.
+json.load() превращает содержимое JSON-файла в обычный Python-словарь."""
+with open("extracted_text.json","r", encoding="utf-8") as file:
+    document_data = json.load(file)
 
-# Ищем место, где в тексте встречается бронеплёнка
-position = document_text.find ("Бронеплёнка")
+text = ""
 
-# Печатаем небольшой кусок текста вокруг неё,
-# чтобы увидеть, как PyMuPDF реально извлёк эти строки
-print (document_text[position:position + 200])
+for page_data in document_data["pages"]:
+    text += f"\n--- СТРАНИЦА {page_data['page']} ---\n"
+    text += page_data["text"]
+
+
 # Формируем инструкцию для модели.
 # В document_text уже лежит настоящий текст из PDF.
 prompt = f"""
@@ -104,7 +105,7 @@ prompt = f"""
 
 Текст документа:
 
-{document_text}
+{text}
 """
 
 
@@ -137,15 +138,85 @@ print("Толщина:", data.thickness)
 # print("Результат извлечения")
 # print (answer)
 
-"""Пока источник создаём вручную только для проверки самой модели provenance.
-Позже документ, страницу и координаты система будет определять автоматически."""
+#Автоматически ищем страницу, где встречется шфир проекта
+project_code_page = find_source_page(
+    data.project_code,
+    document_data["pages"]
+)
+
+project_code_fragment = find_source_fragment(
+    data.project_code,
+    document_data["pages"]
+)
 
 project_code_field = ExtractedField(
-    value = data.project_code,
-
-    source=SourceInfo(
-        document = "Защита ГЩУ-ТЭЦ-3 от БПЛА ОСНОВА.pdf",
-        page = 1
+    normalized_value = data.project_code,
+    source = SourceInfo(
+        document = document_data["document"],
+        page = project_code_page,
+        fragment=project_code_fragment
     )
 )
-print(project_code_field)
+#Автоматически ищем страницу материала и колличества
+material_page = find_source_page(
+    data.material,
+    document_data["pages"]
+)
+
+material_fragment = find_source_fragment(
+    data.material,
+    document_data["pages"]
+)
+
+material_field = ExtractedField(
+    normalized_value = data.material,
+    source = SourceInfo(
+        document = document_data["document"],
+        page = material_page,
+        fragment = material_fragment
+    )
+)
+
+
+quantity_page = find_source_page(
+    data.quantity,
+    document_data["pages"]
+)
+
+quantity_fragment = find_source_fragment(
+    data.quantity,
+    document_data["pages"]
+)
+
+quantity_field = ExtractedField(
+    normalized_value = data.quantity,
+    source = SourceInfo(
+        document = document_data["document"],
+        page = quantity_page,
+        fragment = quantity_fragment
+    )
+)
+
+thickness_page = find_source_page(
+    data.thickness,
+    document_data["pages"]
+)
+
+thickness_fragment = find_source_fragment(
+    data.thickness,
+    document_data["pages"]
+)
+
+thickness_field = ExtractedField(
+    normalized_value = data.thickness,
+    source = SourceInfo(
+        document = document_data["document"],
+        page = thickness_page,
+        fragment = thickness_fragment
+    )
+)
+
+print("Шифр:", project_code_field)
+print("Материал:", material_field)
+print("Количество:", quantity_field)
+print("Толщина:", thickness_field)

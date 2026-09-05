@@ -9,11 +9,12 @@ class SourceInfo(BaseModel):
 
     document:str | None
     page:int | None
+    fragment:str | None
 
 #Одно найденное значение с информацией об источнике
 class ExtractedField(BaseModel):
     #Само значение
-    value:str | None
+    normalized_value:str | None
 
     # Откуда система взяла значение
     source: SourceInfo | None
