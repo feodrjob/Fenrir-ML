@@ -1,11 +1,14 @@
 # Импортируем НАШУ функцию из файла ollama_client.py.
 # То есть код подключения к Ollama второй раз не пишем.
+from statistics import quantiles
+
 from llm_provider import get_llm_provider
 #Библиотека данная умеет превращать json текст в настоящйи словарь
 import json
 #Импортируем модель данных
 from extraction_models import ExtractionResult, ExtractedField, SourceInfo
-from provenance import find_source_page, find_source_fragment
+from provenance import find_source
+from document_models import DocumentIR
 
 # Функция посмотрит LLM_PROVIDER в .env.
 llm = get_llm_provider()
@@ -73,6 +76,9 @@ json.load() превращает содержимое JSON-файла в обы�
 with open("extracted_text.json","r", encoding="utf-8") as file:
     document_data = json.load(file)
 
+# Проверяем, что extracted_document.json соответствует структуре нашего Document IR.
+document_ir = DocumentIR.model_validate(document_data)
+
 text = ""
 
 for page_data in document_data["pages"]:
@@ -138,32 +144,24 @@ print("Толщина:", data.thickness)
 # print("Результат извлечения")
 # print (answer)
 
-#Автоматически ищем страницу, где встречется шфир проекта
-project_code_page = find_source_page(
-    data.project_code,
-    document_data["pages"]
-)
-
-project_code_fragment = find_source_fragment(
+# Одним вызовом получаем всю информацию об источнике шифра проекта.
+project_code_source = find_source(
     data.project_code,
     document_data["pages"]
 )
 
 project_code_field = ExtractedField(
-    normalized_value = data.project_code,
-    source = SourceInfo(
-        document = document_data["document"],
-        page = project_code_page,
-        fragment=project_code_fragment
+    normalized_value=data.project_code,
+    source=SourceInfo(
+        document=document_data["document"],
+        page=project_code_source["page"],
+        fragment=project_code_source["fragment"],
+        bbox=project_code_source["bbox"]
     )
 )
-#Автоматически ищем страницу материала и колличества
-material_page = find_source_page(
-    data.material,
-    document_data["pages"]
-)
 
-material_fragment = find_source_fragment(
+#Автоматически ищем страницу материала и колличества
+material_source = find_source(
     data.material,
     document_data["pages"]
 )
@@ -172,18 +170,13 @@ material_field = ExtractedField(
     normalized_value = data.material,
     source = SourceInfo(
         document = document_data["document"],
-        page = material_page,
-        fragment = material_fragment
+        page = material_source["page"],
+        fragment = material_source["fragment"],
+        bbox = material_source["bbox"]
     )
 )
 
-
-quantity_page = find_source_page(
-    data.quantity,
-    document_data["pages"]
-)
-
-quantity_fragment = find_source_fragment(
+quantity_source = find_source(
     data.quantity,
     document_data["pages"]
 )
@@ -192,17 +185,13 @@ quantity_field = ExtractedField(
     normalized_value = data.quantity,
     source = SourceInfo(
         document = document_data["document"],
-        page = quantity_page,
-        fragment = quantity_fragment
+        page = quantity_source["page"],
+        fragment = quantity_source["fragment"],
+        bbox = quantity_source["bbox"]
     )
 )
 
-thickness_page = find_source_page(
-    data.thickness,
-    document_data["pages"]
-)
-
-thickness_fragment = find_source_fragment(
+thickness_source = find_source(
     data.thickness,
     document_data["pages"]
 )
@@ -211,8 +200,9 @@ thickness_field = ExtractedField(
     normalized_value = data.thickness,
     source = SourceInfo(
         document = document_data["document"],
-        page = thickness_page,
-        fragment = thickness_fragment
+        page = thickness_source["page"],
+        fragment = thickness_source["fragment"],
+        bbox = thickness_source["bbox"]
     )
 )
 
@@ -220,3 +210,8 @@ print("Шифр:", project_code_field)
 print("Материал:", material_field)
 print("Количество:", quantity_field)
 print("Толщина:", thickness_field)
+print("-------------------------------------------------------------------")
+
+print("Документ:", document_ir.document)
+print("Первая страница:", document_ir.pages[0].page)
+print("Количество блоков:", len(document_ir.pages[0].blocks))

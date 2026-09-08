@@ -11,37 +11,42 @@ def normalize_text(text):
     text = "".join(text.split())
     return text
 
+def find_source(value, pages):
+    """За один проход находит страницу, исходный фрагмент и bbox значения."""
 
-
-def find_source_page(value, pages):
-    """Ищет страницу, на которой встречается найденное моделью значение."""
-
-    # Если модель ничего не нашла возврашаем null
     if value is None:
-        return None
-
-    normalized_value = normalize_text(value)
-
-    # По очереди перебираем страницы докумнета
-    for page_data in pages:
-        normalized_page_text = normalize_text(page_data["text"])
-        #Проверяем встречается ли значение внутри текста страницы
-        if normalized_value in normalized_page_text:
-            return page_data["page"]
-
-    return None  #Если ничего не нашли
-
-def find_source_fragment(value, pages):
-    """Ищет исходную строку текста, в которой встречается найденное значение."""
-    if value is None:
-        return None
+        return {
+            "page": None,
+            "fragment": None,
+            "bbox": None
+        }
 
     normalized_value = normalize_text(value)
 
     for page_data in pages:
+        for block in page_data["blocks"]:
+            normalized_block_text = normalize_text(block["text"])
 
-        for line in page_data["text"].splitlines():
-            if normalized_value in normalize_text(line):
-                return line.strip() #убирает лишние пробелы в начале и конце строки.
+            if normalized_value in normalized_block_text:
+                fragment = None
 
-    return None
+                # Ищем конкретную строку внутри найденного текстового блока
+                for line in block["text"].splitlines():
+                    if normalized_value in normalize_text(line):
+                        fragment = line.strip()
+                        break
+                return {
+                    "page": page_data["page"],
+                    "fragment": fragment,
+                    "bbox": block["bbox"]
+                }
+    return {
+        "page": None,
+        "fragment": None,
+        "bbox": None
+    }
+
+
+
+
+

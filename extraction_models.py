@@ -10,6 +10,8 @@ class SourceInfo(BaseModel):
     document:str | None
     page:int | None
     fragment:str | None
+    #Координаты текстового блока
+    bbox: list[float] | None = None # Благодаря этому старый код не сломается, даже если bbox пока не передан.
 
 #Одно найденное значение с информацией об источнике
 class ExtractedField(BaseModel):
