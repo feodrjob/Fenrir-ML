@@ -13,62 +13,8 @@ from document_models import DocumentIR
 # Функция посмотрит LLM_PROVIDER в .env.
 llm = get_llm_provider()
 
-# Описываем структуру ответа,
-# которую Qwen обязана вернуть.
-extraction_schema = {
-
-    # Ответ должен быть одним объектом {...}
-    # Поэтому массив [...] теперь не подходит.
-    "type": "object",
-
-    # Перечисляем разрешённые поля
-    "properties": {
-
-        "project_code": {
-            # Поле может быть строкой или null
-            "anyOf": [
-                {"type": "string"},
-                {"type": "null"}
-            ]
-        },
-
-        "material": {
-            "anyOf": [
-                {"type": "string"},
-                {"type": "null"}
-            ]
-        },
-
-        "quantity": {
-            # Именно string не позволит вернуть число 162
-            "anyOf": [
-                {"type": "string"},
-                {"type": "null"}
-            ]
-        },
-
-        "thickness": {
-            # Поэтому 0.2 как число тоже уже не пройдёт
-            "anyOf": [
-                {"type": "string"},
-                {"type": "null"}
-            ]
-        }
-    },
-
-    # Эти четыре ключа должны присутствовать всегда.
-    # Если данных нет — модель должна поставить null.
-    "required": [
-        "project_code",
-        "material",
-        "quantity",
-        "thickness"
-    ],
-
-    # Запрещаем модели придумывать пятое,
-    # шестое и другие поля.
-    "additionalProperties": False
-}
+# Pydantic сам создаёт JSON Schema из нашей модели ExtractionResult.
+extraction_schema = ExtractionResult.model_json_schema()
 
 
 """Читаем JSON, который создал main.py.
@@ -80,10 +26,11 @@ with open("extracted_text.json","r", encoding="utf-8") as file:
 document_ir = DocumentIR.model_validate(document_data)
 
 text = ""
+# собираем текст для LLM уже из валидированного DocumentIR
 
-for page_data in document_data["pages"]:
-    text += f"\n--- СТРАНИЦА {page_data['page']} ---\n"
-    text += page_data["text"]
+for page_data in document_ir.pages:
+    text += f"\n--- СТРАНИЦА  {page_data.page} ---\n"
+    text += page_data.text
 
 
 # Формируем инструкцию для модели.
@@ -143,73 +90,36 @@ print("Количество:", data.quantity)
 print("Толщина:", data.thickness)
 # print("Результат извлечения")
 # print (answer)
+print("-------------------------------------------------------------------")
 
-# Одним вызовом получаем всю информацию об источнике шифра проекта.
-project_code_source = find_source(
-    data.project_code,
-    document_data["pages"]
-)
+"""model_dump() превращает Pydantic-объект в словарь.
+items() позволяет по очереди получить имя каждого поля и его значение."""
 
-project_code_field = ExtractedField(
-    normalized_value=data.project_code,
-    source=SourceInfo(
-        document=document_data["document"],
-        page=project_code_source["page"],
-        fragment=project_code_source["fragment"],
-        bbox=project_code_source["bbox"]
+extracted_fields = {}
+
+for field_name, field_value in data.model_dump().items():
+    source_data = find_source(
+        field_value,
+        document_ir.pages
     )
-)
 
-#Автоматически ищем страницу материала и колличества
-material_source = find_source(
-    data.material,
-    document_data["pages"]
-)
-
-material_field = ExtractedField(
-    normalized_value = data.material,
-    source = SourceInfo(
-        document = document_data["document"],
-        page = material_source["page"],
-        fragment = material_source["fragment"],
-        bbox = material_source["bbox"]
+    extracted_fields[field_name] = ExtractedField(
+        field_name=field_name,
+        normalized_value=field_value,
+        source=SourceInfo(
+            document=document_ir.document,
+            page=source_data["page"],
+            fragment=source_data["fragment"],
+            bbox=source_data["bbox"]
+        )
     )
-)
 
-quantity_source = find_source(
-    data.quantity,
-    document_data["pages"]
-)
 
-quantity_field = ExtractedField(
-    normalized_value = data.quantity,
-    source = SourceInfo(
-        document = document_data["document"],
-        page = quantity_source["page"],
-        fragment = quantity_source["fragment"],
-        bbox = quantity_source["bbox"]
-    )
-)
+for field_name, field_data in extracted_fields.items():
+    print(field_name, ":", field_data)
 
-thickness_source = find_source(
-    data.thickness,
-    document_data["pages"]
-)
 
-thickness_field = ExtractedField(
-    normalized_value = data.thickness,
-    source = SourceInfo(
-        document = document_data["document"],
-        page = thickness_source["page"],
-        fragment = thickness_source["fragment"],
-        bbox = thickness_source["bbox"]
-    )
-)
 
-print("Шифр:", project_code_field)
-print("Материал:", material_field)
-print("Количество:", quantity_field)
-print("Толщина:", thickness_field)
 print("-------------------------------------------------------------------")
 
 print("Документ:", document_ir.document)

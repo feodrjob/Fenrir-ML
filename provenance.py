@@ -24,21 +24,21 @@ def find_source(value, pages):
     normalized_value = normalize_text(value)
 
     for page_data in pages:
-        for block in page_data["blocks"]:
-            normalized_block_text = normalize_text(block["text"])
+        for block in page_data.blocks:
+            normalized_block_text = normalize_text(block.text)
 
             if normalized_value in normalized_block_text:
                 fragment = None
 
                 # Ищем конкретную строку внутри найденного текстового блока
-                for line in block["text"].splitlines():
+                for line in block.text.splitlines():
                     if normalized_value in normalize_text(line):
                         fragment = line.strip()
                         break
                 return {
-                    "page": page_data["page"],
+                    "page": page_data.page,
                     "fragment": fragment,
-                    "bbox": block["bbox"]
+                    "bbox": block.bbox # Pydantic-объекты
                 }
     return {
         "page": None,

@@ -15,6 +15,9 @@ class SourceInfo(BaseModel):
 
 #Одно найденное значение с информацией об источнике
 class ExtractedField(BaseModel):
+
+    # Название поля
+    field_name: str
     #Само значение
     normalized_value:str | None
 
