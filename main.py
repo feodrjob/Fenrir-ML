@@ -2,7 +2,7 @@ import pymupdf
 import json
 
 #Название файля откуда читаем
-pdf_path = "Защита ГЩУ-ТЭЦ-3 от БПЛА  ОСНОВА.pdf"
+pdf_path = "data/input/Защита ГЩУ-ТЭЦ-3 от БПЛА  ОСНОВА.pdf"
 
 #Открываем документ (закроется сам при выходе из with)
 with pymupdf.open(pdf_path) as doc:
@@ -21,8 +21,10 @@ def convert_blocks(raw_blocks):
     """Превращает блоки PyMuPDF в удобные словари, которые можно сохранить в JSON."""
     blocks = []
 
-    for block in raw_blocks:
+    # enumerate() даёт нам одновременно порядковый номер блока и сам блок.
+    for block_id, block in enumerate (raw_blocks):
         blocks.append({
+            "block_id" : block_id,
             "text": block[4].strip(),
             "bbox": [
                 block[0],
@@ -55,7 +57,7 @@ document_data = {
 }
 #Сохраняем результат в текстовый файл
 
-with open ("extracted_text.txt", "w", encoding="utf-8") as file:
+with open ("data/input/extracted_text.txt", "w", encoding="utf-8") as file:
     file.write("--- СТРАНИЦА 1 ---\n")
     file.write(text_page_1)
     file.write("\n\n--- СТРАНИЦА 3 ---\n")
@@ -63,7 +65,7 @@ with open ("extracted_text.txt", "w", encoding="utf-8") as file:
 
 print("Текст успешно извлечен и сохранен в extracted_text.txt")
 
-with open ("extracted_text.json", "w", encoding="utf-8") as file:
+with open ("data/output/extracted_text.json", "w", encoding="utf-8") as file:
     json.dump(
         document_data,
         file,

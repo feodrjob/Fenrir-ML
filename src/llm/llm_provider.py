@@ -94,7 +94,7 @@ class GigachatProvider(LLMProvider):
 
         self.ca_bundle = os.getenv(
             "GIGACHAT_CA_BUNDLE",
-            "russian_trusted_root_ca_pem.crt"
+            "../../russian_trusted_root_ca_pem.crt"
         )
 
     def generate (self, prompt, response_schema = None):

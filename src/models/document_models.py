@@ -3,7 +3,8 @@ from pydantic import BaseModel
 
 class TextBlock(BaseModel):
     """Один текстовый блок страницы вместе с его координатами."""
-
+    #ID лока с текстом внутри страницы
+    block_id: int
     text: str
     bbox: list[float]
 

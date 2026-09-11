@@ -21,7 +21,7 @@ load_dotenv()
 # 1. Читаем РЕАЛЬНЫЙ текст, который ранее извлёк PyMuPDF
 # ---------------------------------------------------------
 
-with open("extracted_text.txt", "r", encoding="utf-8") as file:
+with open("data/input/extracted_text.txt", "r", encoding="utf-8") as file:
     document_text = file.read()
 
 

@@ -1,14 +1,14 @@
 # Импортируем НАШУ функцию из файла ollama_client.py.
 # То есть код подключения к Ollama второй раз не пишем.
-from statistics import quantiles
 
-from llm_provider import get_llm_provider
+from src.llm.llm_provider import get_llm_provider
 #Библиотека данная умеет превращать json текст в настоящйи словарь
 import json
 #Импортируем модель данных
-from extraction_models import ExtractionResult, ExtractedField, SourceInfo
-from provenance import find_source
-from document_models import DocumentIR
+from src.models.extraction_models import ExtractionResult, ExtractedField
+from src.extraction.provenance import find_source
+from src.models.document_models import DocumentIR
+from src.normalization.normalization import normalize_value
 
 # Функция посмотрит LLM_PROVIDER в .env.
 llm = get_llm_provider()
@@ -19,7 +19,7 @@ extraction_schema = ExtractionResult.model_json_schema()
 
 """Читаем JSON, который создал main.py.
 json.load() превращает содержимое JSON-файла в обычный Python-словарь."""
-with open("extracted_text.json","r", encoding="utf-8") as file:
+with open("data/output/extracted_text.json", "r", encoding="utf-8") as file:
     document_data = json.load(file)
 
 # Проверяем, что extracted_document.json соответствует структуре нашего Document IR.
@@ -98,20 +98,23 @@ items() позволяет по очереди получить имя кажд�
 extracted_fields = {}
 
 for field_name, field_value in data.model_dump().items():
-    source_data = find_source(
+    source = find_source(
         field_value,
-        document_ir.pages
+        # find_source() теперь получает весь DocumentIR и возвращает готовый SourceInfo.
+        document_ir
+    )
+
+    # Приводим значение LLM к единому формату нашей системы.
+    normalized_value = normalize_value(
+        field_name,
+        field_value
     )
 
     extracted_fields[field_name] = ExtractedField(
         field_name=field_name,
-        normalized_value=field_value,
-        source=SourceInfo(
-            document=document_ir.document,
-            page=source_data["page"],
-            fragment=source_data["fragment"],
-            bbox=source_data["bbox"]
-        )
+        extracted_value=field_value,
+        normalized_value=normalized_value,
+        source=source
     )
 
 
