@@ -1,41 +1,25 @@
-# Импортируем НАШУ функцию из файла ollama_client.py.
-# То есть код подключения к Ollama второй раз не пишем.
-
+from src.extraction.extractor import DocumentExtractor, ExtractionError
 from src.llm.llm_provider import get_llm_provider
-#Библиотека данная умеет превращать json текст в настоящйи словарь
-import json
+
 #Импортируем модель данных
-from src.models.extraction_models import ExtractionResult, ExtractedField
-from src.extraction.provenance import find_source
-from src.models.document_models import DocumentIR
-from src.normalization.normalization import normalize_value
+from src.models.extraction_models import ExtractionResult
+from src.document.pdf_parser import parse_pdf
 
 # Функция посмотрит LLM_PROVIDER в .env.
 llm = get_llm_provider()
 
-# Pydantic сам создаёт JSON Schema из нашей модели ExtractionResult.
-extraction_schema = ExtractionResult.model_json_schema()
+pdf_path = "data/input/Защита ГЩУ-ТЭЦ-3 от БПЛА  ОСНОВА.pdf"
+
+document_ir = parse_pdf(pdf_path)
 
 
-"""Читаем JSON, который создал main.py.
-json.load() превращает содержимое JSON-файла в обычный Python-словарь."""
-with open("data/output/extracted_text.json", "r", encoding="utf-8") as file:
-    document_data = json.load(file)
 
-# Проверяем, что extracted_document.json соответствует структуре нашего Document IR.
-document_ir = DocumentIR.model_validate(document_data)
 
-text = ""
-# собираем текст для LLM уже из валидированного DocumentIR
-
-for page_data in document_ir.pages:
-    text += f"\n--- СТРАНИЦА  {page_data.page} ---\n"
-    text += page_data.text
 
 
 # Формируем инструкцию для модели.
 # В document_text уже лежит настоящий текст из PDF.
-prompt = f"""
+instruction = f"""
 Извлеки данные из рабочей документации.
 
 Найди:
@@ -55,72 +39,41 @@ prompt = f"""
 а не превращаться в "0.2 мм".
 
 Если данных нет, используй null.
-
-Текст документа:
-
-{text}
 """
 
 
-# Наша уже написанная функция отправляет prompt в Ollama.
-
-# Передаём одновременно:
-# 1. наше задание
-# 2. строгую структуру ответа
-answer = llm.generate(
-    prompt,
-    extraction_schema
-)
-
-# model_validate_json() делает сразу две вещи:
-#
-# 1. превращает JSON-строку в данные Python;
-# 2. проверяет их по правилам ExtractionResult.
-#
-# Если структура неправильная —
-# Pydantic сразу выдаст понятную ошибку.
-
-data = ExtractionResult.model_validate_json(answer)
-
-#Проверим что можем обратиться к каждому значению по ключу
-# У объекта Pydantic поля доступны через точку.
-print("Шифр проекта:", data.project_code)
-print("Материал:", data.material)
-print("Количество:", data.quantity)
-print("Толщина:", data.thickness)
-# print("Результат извлечения")
-# print (answer)
 print("-------------------------------------------------------------------")
 
 """model_dump() превращает Pydantic-объект в словарь.
 items() позволяет по очереди получить имя каждого поля и его значение."""
 
-extracted_fields = {}
-
-for field_name, field_value in data.model_dump().items():
-    source = find_source(
-        field_value,
-        # find_source() теперь получает весь DocumentIR и возвращает готовый SourceInfo.
-        document_ir
+extractor = DocumentExtractor(llm)
+try:
+    fields = extractor.extract(
+        document_ir,
+        ExtractionResult,
+        instruction
     )
-
-    # Приводим значение LLM к единому формату нашей системы.
-    normalized_value = normalize_value(
-        field_name,
-        field_value
-    )
-
-    extracted_fields[field_name] = ExtractedField(
-        field_name=field_name,
-        extracted_value=field_value,
-        normalized_value=normalized_value,
-        source=source
-    )
+except ExtractionError as error:
+    print ("Ошибка извлечения: ",error )
+    raise
 
 
-for field_name, field_data in extracted_fields.items():
-    print(field_name, ":", field_data)
+print("Извлечённые данные:")
+for name, field in fields.items():
+    print(name, ":", field.extracted_value)
 
+print("-------------------------------------------------------------------")
+
+print("Нормализованные данные:")
+for name, field in fields.items():
+    print(name, ":", field.normalized_value)
+
+print("-------------------------------------------------------------------")
+
+print("Полные данные:")
+for name, field in fields.items():
+    print(name, ":", field)
 
 
 print("-------------------------------------------------------------------")
