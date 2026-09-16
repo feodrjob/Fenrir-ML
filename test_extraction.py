@@ -13,10 +13,6 @@ pdf_path = "data/input/Защита ГЩУ-ТЭЦ-3 от БПЛА  ОСНОВА.
 document_ir = parse_pdf(pdf_path)
 
 
-
-
-
-
 # Формируем инструкцию для модели.
 # В document_text уже лежит настоящий текст из PDF.
 instruction = f"""

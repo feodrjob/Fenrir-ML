@@ -29,7 +29,7 @@
     - extraction_models
 """
 
-from src.models.extraction_models import ExtractedField
+from src.models.extraction_models import ExtractedField, FieldStatus
 from src.normalization.normalization import normalize_value
 from src.extraction.provenance import find_source
 from pydantic import BaseModel, ValidationError
@@ -105,6 +105,15 @@ class DocumentExtractor:
                 document_ir
             )
 
+            if field_value is None:
+                status = FieldStatus.MISSING
+            elif source.page is not None:
+                status = FieldStatus.SOURCE_VERIFIED
+            else:
+                status = FieldStatus.NEEDS_REVIEW
+
+
+
             normalized = normalize_value(
                 field_name,
                 field_value
@@ -114,7 +123,8 @@ class DocumentExtractor:
                 field_name=field_name,
                 extracted_value=field_value,
                 normalized_value=normalized,
-                source=source
+                source=source,
+                status=status
             )
         return extracted_fields
 

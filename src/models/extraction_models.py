@@ -3,6 +3,7 @@
 # проверку данных.
 
 from pydantic import BaseModel
+from enum import Enum
 
 #описываем откуда было получено конкретное значение
 class SourceInfo(BaseModel):
@@ -13,6 +14,11 @@ class SourceInfo(BaseModel):
     block_id: int | None = None
     #Координаты текстового блока
     bbox: list[float] | None = None # Благодаря этому старый код не сломается, даже если bbox пока не передан.
+
+class FieldStatus (str, Enum):
+    MISSING = "MISSING",
+    SOURCE_VERIFIED = "SOURCE_VERIFIED",
+    NEEDS_REVIEW = "NEEDS_REVIEW"
 
 
 class ExtractedField(BaseModel):
@@ -29,6 +35,9 @@ class ExtractedField(BaseModel):
 
     # Информация о месте в исходном документе.
     source: SourceInfo | None
+
+    # Статус
+    status: FieldStatus
 
 
 
