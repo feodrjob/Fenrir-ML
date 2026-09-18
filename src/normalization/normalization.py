@@ -1,7 +1,6 @@
 
 import re
 import unicodedata
-from lxml.builder import unicode
 
 
 def normalize_value(field_name, value):
