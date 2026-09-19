@@ -2,8 +2,10 @@
 # Наследуясь от него, мы получаем автоматическую
 # проверку данных.
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from enum import Enum
+from src.validation.field_validation import FieldValidationResult
+from src.confidence.confidence import ConfidenceLevel
 
 #описываем откуда было получено конкретное значение
 class SourceInfo(BaseModel):
@@ -39,6 +41,11 @@ class ExtractedField(BaseModel):
     # Статус
     status: FieldStatus
 
+    validation: FieldValidationResult
+
+    # На сколкьо мы доверяем результату
+    confidence: ConfidenceLevel | None = None
+
 
 
 
@@ -55,6 +62,20 @@ class ExtractionResult(BaseModel):
     # None в Python соответствует null в JSON.
 
     project_code:str | None
+
+    project_name: str | None = Field(
+        default=None,
+        description="Название проекта или рабочей документации."
+    )
+
+    work_name: str | None = Field(
+        default=None,
+        description=(
+            "Точное наименование выполненной строительной работы. "
+            "Не использовать название проекта, объекта или рабочей документации. "
+            "Если отдельное наименование работы отсутствует, вернуть null."
+        )
+    )
 
     material:str | None
 

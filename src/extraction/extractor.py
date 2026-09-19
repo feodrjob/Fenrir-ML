@@ -35,6 +35,8 @@ from src.extraction.provenance import find_source
 from pydantic import BaseModel, ValidationError
 from src.models.document_models import DocumentIR
 from src.llm.llm_provider import LLMProvider
+from src.validation.field_validation import validate_field
+from src.confidence.confidence import calculate_confidence
 
 
 class ExtractionError(Exception):
@@ -119,12 +121,25 @@ class DocumentExtractor:
                 field_value
             )
 
+            validation = validate_field(
+                field_name,
+                normalized
+            )
+
+            confidence = calculate_confidence(
+                value_present=field_value is not None,
+                source_verified = status == FieldStatus.SOURCE_VERIFIED,
+                validation_status = validation.status
+            )
+
             extracted_fields[field_name] = ExtractedField(
-                field_name=field_name,
-                extracted_value=field_value,
-                normalized_value=normalized,
-                source=source,
-                status=status
+                field_name = field_name,
+                extracted_value = field_value,
+                normalized_value = normalized,
+                source = source,
+                status = status,
+                validation = validation,
+                confidence = confidence
             )
         return extracted_fields
 
