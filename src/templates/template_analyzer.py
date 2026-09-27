@@ -18,7 +18,7 @@
 """
 
 from docx import Document
-#Надо чтобы отличать документ от ячейки таблицы
+# Надо чтобы отличать документ от ячейки таблицы
 from docx.document import Document as DocumentObject
 # Table - таблица _Cell - отдельная ячейка таблицы
 from docx.table import Table,_Cell
@@ -28,7 +28,7 @@ from docx.text.paragraph import Paragraph
 # CT_Tbl → таблица
 from docx.oxml.text.paragraph import CT_P
 from docx.oxml.table import CT_Tbl
-from ydantic import ValidationError
+from pydantic import ValidationError
 from src.llm.llm_provider import LLMProvider
 from src.templates.template_models import TemplateAnalysisResult
 
@@ -169,6 +169,192 @@ def extract_template_text(template_path: str) -> str:
     # Возвращаем одну строку,
     # где каждый найденный блок расположен с новой строки.
     return "\n".join(parts)
+
+class TemplateAnalysisError:
+    """
+    Ошибка анализа документа.
+    """
+    pass
+
+
+class TemplateAnalyzer:
+    """
+    Анализирует структуру DOCX-шаблона
+    и определяет поля, которые необходимо заполнить.
+    """
+
+
+    def __init__(
+            self,
+            llm: LLMProvider
+    ):
+        self.llm = llm
+
+    def analyze(
+            self,
+            template_path: str,
+    ) -> TemplateAnalysisResult:
+
+        """
+        Анализирует DOCX-шаблон и возвращает
+        структурированное описание его полей.
+        """
+
+        # Сначала читаем аппаратно сожержимое word
+        template_text = extract_template_text(template_path)
+
+        # Pydantic сам создаёт JSON Schema,
+        # которой должен соответствовать ответ LLM.
+        response_schema = TemplateAnalysisResult.model_json_schema()
+
+        prompt = f"""
+        Проанализируй шаблон документа.
+
+        Определи все места документа, которые должны быть заполнены
+        пользователем или информационной системой.
+
+        ВАЖНО:
+        одно место для заполнения может требовать несколько отдельных данных.
+
+        Например, если шаблон требует:
+        "наименование организации, ОГРН, ИНН, адрес"
+
+        это один блок шаблона, но четыре отдельных значения:
+        - organization_name;
+        - ogrn;
+        - inn;
+        - address.
+
+        Для каждого места заполнения:
+
+        1. Создай уникальный key в формате snake_case.
+
+        2. В label сохрани текст шаблона,
+           относящийся к этому месту.
+
+        3. В description используй пояснение самого шаблона,
+           особенно текст в скобках.
+
+        4. В required_data перечисли ВСЕ отдельные значения,
+           которые требуются для заполнения этого места.
+
+        5. Каждый элемент required_data должен описывать
+           одно атомарное значение.
+
+        6. Не объединяй разные реквизиты организации,
+           человека, документа, даты или материала
+           в одно значение.
+
+        7. Не придумывай требований,
+           которых нет в исходном шаблоне.
+
+        8. Не считай обычные заголовки документа полями.
+
+        9. Не пропускай поля только потому,
+           что они расположены в начале или конце документа.
+
+        Определи тип документа,
+        если он явно указан в шаблоне.
+
+        Текст шаблона:
+
+        {template_text}
+        """
+
+        answer = self.llm.generate(
+            prompt,
+            response_schema
+        )
+
+        if not answer or not answer.strip():
+            raise TemplateAnalysisError (
+                "LLM вернула пустой результат анализа шаблона"
+            )
+
+        try:
+            return TemplateAnalysisResult.model_validate_json(answer)
+
+        except ValidationError as error:
+            raise TemplateAnalysisError(
+                "LLM вернула результат, который "
+                "не соответствует структуре TemplateAnalysisResult."
+            ) from error
+
+    def review(
+            self,
+            template_path: str,
+            analysis: TemplateAnalysisResult
+    ) -> TemplateAnalysisResult:
+        """
+        Повторно проверяет результат анализа шаблона.
+
+        Задача второго прохода:
+        - найти пропущенные поля;
+        - проверить атомарность required_data;
+        - убрать данные, которых шаблон напрямую не требует.
+        """
+
+        template_text = extract_template_text(template_path)
+
+        response_schema = TemplateAnalysisResult.model_json_schema()
+
+        current_analysis = analysis.model_dump_json(
+            indent=2,
+            ensure_ascii=False
+        )
+
+        prompt = f"""
+    Проверь ранее выполненный анализ шаблона документа.
+
+    У тебя есть:
+    1. полный текст исходного шаблона;
+    2. уже найденные поля.
+
+    Нужно вернуть исправленный и полный результат анализа.
+
+    Правила проверки:
+
+    - найди места для заполнения, которые были пропущены;
+    - проверь весь документ от начала до конца;
+    - каждый явно требуемый реквизит должен быть отражён;
+    - одно required_data должно описывать только одно атомарное значение;
+    - если одно required_data содержит несколько независимых реквизитов,
+      раздели его на несколько;
+    - не добавляй служебные или вычисляемые данные,
+      если сам шаблон их не требует;
+    - не удаляй корректно найденные поля;
+    - не придумывай требования, которых нет в шаблоне;
+    - итог должен полностью описывать данные,
+      необходимые для заполнения шаблона.
+
+    Текст шаблона:
+
+    {template_text}
+
+    Текущий результат анализа:
+
+    {current_analysis}
+    """
+
+        answer = self.llm.generate(
+            prompt,
+            response_schema
+        )
+
+        if not answer or not answer.strip():
+            raise TemplateAnalysisError(
+                "LLM вернула пустой результат проверки шаблона."
+            )
+
+        try:
+            return TemplateAnalysisResult.model_validate_json(answer)
+
+        except ValidationError as error:
+            raise TemplateAnalysisError(
+                "Результат проверки шаблона "
+                "не соответствует TemplateAnalysisResult."
+            ) from error
+
 
 
 

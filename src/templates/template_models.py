@@ -5,15 +5,25 @@
     Модели данных для результатов анализа DOCX-шаблонов.
 
 Основные классы:
+    TemplateDataRequirement
     TemplateFieldSpec
     TemplateAnalysisResult
-
-Важно:
-    Эти модели не привязаны к АОСР.
-    Они должны подходить для любых будущих шаблонов.
 """
 
+
 from pydantic import BaseModel
+
+class TemplateDataRequirement(BaseModel):
+    """
+    Одно атомарное значение, которое требуется
+    для заполнения поля шаблона.
+    """
+
+    key: str
+    # Что именно требуется найти
+    description: str
+
+
 
 class TemplateFieldSpec(BaseModel):
     """
@@ -21,12 +31,14 @@ class TemplateFieldSpec(BaseModel):
     в анализируемом шаблоне.
     """
 
-    # Машиночитаемое имя поля
+    # Уникальное имя самого блока шаблона.
     key: str
-    # Текст рядом с полем в самом шаблоне
+    # Текст поля в исходном документе.
     label: str
-    # Подсказака из шаблона (что требуется)
+    # Пояснение из шаблона.
     description: str | None = None
+    # Какие отдельные данные нужны, чтобы заполнить это место.
+    required_data: list[TemplateDataRequirement] = []
 
 
 class TemplateAnalysisResult(BaseModel):
@@ -39,3 +51,47 @@ class TemplateAnalysisResult(BaseModel):
 
     # Все найденные поля шаблона
     fields: list[TemplateFieldSpec]
+
+
+
+class TemplateSlotCandidate(BaseModel):
+    """
+    Физическое место в DOCX,
+    которое похоже на область для заполнения.
+    """
+    #Номер таблицы
+    table_index: int
+
+    # Номер строки таблицы
+    row_index: int
+
+    # Номер ячейчки внутри строки (уникальный)
+    cell_index: int
+
+    # Сколько колонок занимает ячейка
+    grid_span: int = 1
+
+    # Текст, который находится в этой же строке.
+    row_text: str | None = None
+
+    # Ближайший текст выше.
+    previous_text: str | None = None
+
+    # Ближайший текст ниже.
+    next_text: str | None = None
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
